@@ -3,8 +3,10 @@ import Layout from "../components/Layout";
 import JFRRS from "../components/Logo";
 import Image from "next/image";
 import jeffHimself from "../public/colombia_dave.png";
+import { trpc } from "../utils/trpc";
 
 const HomePage: NextPage = () => {
+  const hello = trpc.useQuery(["example.hello", { text: "from tRPC" }]);
   return (
     <Layout>
       <div className="mx-auto mt-32 text-center group">
