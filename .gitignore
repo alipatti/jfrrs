@@ -10,6 +10,7 @@
 
 # environment variables
 .env
+.env.local
 
 # typescript files
 *.tsbuildinfo
@@ -18,3 +19,6 @@ next-env.d.ts
 # python bytecode
 *.py[cod]
 *$py.class
+
+# log files
+*.log*
