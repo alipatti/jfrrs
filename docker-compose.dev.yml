@@ -1,0 +1,4 @@
+services:
+  app:
+    volumes:
+      - ./:/app  # mount current folder to docker image
