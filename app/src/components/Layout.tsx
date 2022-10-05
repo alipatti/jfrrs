@@ -1,7 +1,6 @@
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
 import JFRRS from "./Logo";
-import Image from "next/image"
 
 // pages to display in navbar
 type NavbarPage = [route: string, displayName: string];
@@ -61,7 +60,7 @@ export function Navbar() {
         ))}
 
         <div className="ml-auto flex gap-3 items-center">
-          {session?.user && <img src={session.user.image!} className="h-6 rounded-full shadow-md"/>}
+          {session?.user?.image && <img src={session.user.image} className="h-6 rounded-full shadow-md"/>}
           <button
             // href="/api/auth/signin"
             className="hover:drop-shadow-lg hover:scale-105 transition-all"

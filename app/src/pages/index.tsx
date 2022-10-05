@@ -18,7 +18,7 @@ const HomePage: NextPage = () => {
       </div>
 
       <div className="invisible md:visible absolute w-80 right-0 bottom-20 translate-y-2">
-        <Image src={jeffHimself} objectFit="contain" />
+        <Image src={jeffHimself} alt="Jeff Himself" objectFit="contain" />
       </div>
     </Layout>
   );
