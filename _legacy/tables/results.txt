@@ -1,0 +1,10 @@
+CREATE TABLE results (
+    id          INTEGER PRIMARY KEY,
+    athlete_id  INTEGER,
+    meet_id     INTEGER NOT NULL,
+    time        REAL,
+    score       INTEGER,
+
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id),
+    FOREIGN KEY (meet_id)    REFERENCES meets    (id)
+);

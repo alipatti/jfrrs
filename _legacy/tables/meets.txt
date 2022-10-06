@@ -1,0 +1,8 @@
+CREATE TABLE meets (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    date        TEXT    NOT NULL,
+    distance    INTEGER NOT NULL,
+    venue       TEXT    NOT NULL,
+    city        TEXT
+);
