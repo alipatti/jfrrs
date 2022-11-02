@@ -20,6 +20,7 @@
 next-env.d.ts
 
 # python bytecode
+/**/__pycache__
 *.py[cod]
 *$py.class
 
