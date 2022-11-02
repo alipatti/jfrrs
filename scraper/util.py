@@ -1,79 +1,25 @@
 """Utility functions for extracting data from TFRRS."""
 import re
-from datetime import datetime
 import requests
 import re
-import json
 
-from scrapy.selector import SelectorList
+import json
+import json5  # a slower but more flexible json parser to javascript objects
 import pandas as pd
 
-# TODO do some cleanup. a lot of these aren't needed anymore
 
-
-def _clean(string: str) -> str:
-    return re.sub(r"\s+", " ", string).strip()
-
-
-def get_attributes(spans: SelectorList):
-    return dict(span_text.split(": ") for span_text in spans.getall())
-
-
-def get_meet_tfrrs_id(url: str) -> int:
-    match = re.search(r"/results(/xc)?/(\d+)", url)
-    return int(match.group(2))
-
-
-def _get_team_id(td: str) -> str:
-    if not td.a:
-        return None
-    return re.search(r"xc/(.+?)\.html", td.a["href"]).group(1)
-
-
-def _fmt_time(td: str) -> float:
-    """Returns time in seconds, `None` if DNF/DNS."""
-    string = _clean(td.text)
-
-    if string.upper() in ["DNS", "DNF", "DQ", "SCR", "NT"]:
-        return None
-
-    string, tenths = string.split(".") if "." in string else (td.text, 0)
-    time = reversed([int(i) for i in string.split(":") + [tenths]])
-
-    multipliers = [0.1, 1, 60, 60 * 60]
-
-    return sum(m * t for m, t in zip(multipliers, time))
-
-
-def _fmt_place(td) -> int:
-    string = _clean(td.text)
-    if not string:
-        return None
-
-    return int(string)
-
-
-def _fmt_date(string: str) -> int:
-    """Converts dat to format `DD/MM/YY`"""
-    string = _clean(string)
-    try:
-        date_obj = datetime.strptime(string, "%B %d, %Y")
-    except ValueError:
-        month, day = [int(s) for s in string.strip("()").split("/")]
-        date_obj = datetime(2021, month, day)
-
-    return date_obj.strftime("%m/%d/%Y")
+# NOTE: KEEP DF COLUMN NAMES CONSISTENT WITH PRISMA SCHEMA FOR EASIER INTEGRATION
 
 
 def get_meets_df() -> pd.DataFrame:
-    """Retrieves information for every meet on TFRRS via a public
+    """Retrieves information for every meet on TFRRS via a client-side
     direct athletics script and format it as a pandas DataFrame"""
 
     url = "https://www.directathletics.com/scripts/fuseDriver.js"
     headers = {"user-agent": "jfrrs"}  # server rejects requests without this
 
     with requests.get(url, headers=headers) as r:
-        assert r.status_code == 200, "Request rejected by Direct Athletics"
+        assert r.status_code == 200, "Request rejected"
         js = r.text.replace("\t", " ")
 
     # regex pattern to find the json array in the .js file
@@ -83,27 +29,57 @@ def get_meets_df() -> pd.DataFrame:
     meets = pd.DataFrame(json.loads(raw_array_string))
 
     # convert dates to python datetimes
-    meets["date_begin"] = pd.to_datetime(
-        meets["date_begin"], infer_datetime_format=True
-    )
+    meets["date_begin"] = pd.to_datetime(meets.date_begin, infer_datetime_format=True)
+
+    meets["outdoors"] = meets.outdoors == "1"  # some of these are just wrong...
 
     # drop non-tfrrs meets
     meets = meets[meets.tfrrs == "1"]
 
-    # convert sport to one of itf, otf, xc
-    meets["sport"] = [
-        sport if sport != "track" 
-        else ("otf" if outdoors == "1" else "itf")
-        for sport, outdoors in zip(meets.sport, meets.outdoors)
-    ]  # fmt: skip
-
     # cleanup
-    meets.rename(columns={"meet_hnd": "tfrrs_id", "date_begin": "date"}, inplace=True)
-    meets.drop(columns=["outdoors", "url", "tfrrs", "meetpro"], inplace=True)
+    meets.rename(columns={"meet_hnd": "idTFRRS", "date_begin": "date"}, inplace=True)
+    meets.drop(columns=["url", "tfrrs", "meetpro"], inplace=True)
     meets.reset_index(inplace=True, drop=True)
 
     return meets
 
-def get_teams_df() -> pd.DataFrame:
-    """"""
 
+def get_teams_df() -> pd.DataFrame:
+    """Extracts team information from TFRRS autocomplete script."""
+    raw_df = _fetch_autocomplete_data(table_name="autocomplete_teams")
+
+    # extract meaningful information
+    columns = [
+        raw_df.text.str.extract(r"(?P<name>.+?) \((?P<gender>[MF])\)"),
+        raw_df.url.str.extract(r"/teams/(?:tf|xc)/(?P<idTFRRS>.+)\.html"),
+        raw_df.url.str.extract(r"/teams/(?:tf|xc)/(?P<state>.{2})_(?P<level>.*?)_.*"),
+    ]
+
+    return pd.concat(objs=columns, axis="columns")  # combine into df and return
+
+
+def get_conferences_df() -> pd.DataFrame:
+    """Extracts conference information from TFRRS autocomplete script."""
+
+    raw_df = _fetch_autocomplete_data(table_name="autocomplete_conferences")
+
+    columns = [
+        raw_df.text.rename("name"),
+        raw_df.url.str.extract(r"/leagues/(?P<idTFRRS>\d+)\.html"),
+    ]
+
+    return pd.concat(objs=columns, axis="columns")
+
+
+def _fetch_autocomplete_data(table_name):
+    """Helper method. See above."""
+
+    # fetch js file
+    url = "https://www.tfrrs.org/js/navbar_autocomplete.js"
+    with requests.get(url) as r:
+        javascript = r.text
+
+    # find desired array and return it as a dataframe
+    regex_pattern = re.compile(rf"{table_name}\s*=\s*(\[.+?\]);", flags=re.DOTALL)
+    raw_array_string = regex_pattern.search(javascript).group(1)
+    return pd.DataFrame(json5.loads(raw_array_string))
