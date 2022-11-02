@@ -10,6 +10,8 @@ import pandas as pd
 
 # NOTE: KEEP DF COLUMN NAMES CONSISTENT WITH PRISMA SCHEMA FOR EASIER INTEGRATION
 
+# TODO move these to a spider to integrate better with scrapy ecosystem
+
 
 def get_meets_df() -> pd.DataFrame:
     """Retrieves information for every meet on TFRRS via a client-side

@@ -1,6 +1,5 @@
 // documentation: https://pris.ly/d/prisma-schema
 
-
 generator client {
   provider = "prisma-client-js"
 }
