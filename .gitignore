@@ -1,18 +1,21 @@
+# node and python dependencies
+/node_modules
+.venv
 
-# node dependencies
-**/node_modules
-
-# nextjs files
-**/.next
+# next.js
+/.next/
 
 # macOS jeffery
 .DS_Store
 
-# environment variables
-.env
-.env.local
+# log files
+*.log*
 
-# typescript files
+
+# env files
+.env
+
+# typescript
 *.tsbuildinfo
 next-env.d.ts
 
@@ -20,5 +23,4 @@ next-env.d.ts
 *.py[cod]
 *$py.class
 
-# log files
-*.log*
+

@@ -7,8 +7,6 @@ from pprint import pprint
 from prisma import Prisma
 
 
-
-
 async def main():
     db = Prisma()
     try:

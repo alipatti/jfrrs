@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+scrapy = "*"
+prisma = "*"
+json5 = "*"
+
+[dev-packages]
+ipykernel = "*"
+pandas = "*"
+black = "*"
+
+[requires]
+python_version = "3.10"

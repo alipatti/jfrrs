@@ -1,0 +1,286 @@
+// documentation: https://pris.ly/d/prisma-schema
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// TODO migrate to MySQL and setup docker development database
+
+// TODO setup production database 
+// (with some online provider. i don't want to host this myself)
+
+datasource db {
+  provider = "postgres"
+  url      = env("DATABASE_URL")
+}
+
+/////////////////////////////
+// TRACK/XC-RELATED MODELS //
+/////////////////////////////
+
+model Meet {
+  id      String  @id @default(cuid())
+  idTFRRS Int     @unique
+  isXC    Boolean
+
+  name     String
+  date     DateTime
+  location String
+
+  // json blob to store optional unstructured data
+  // e.g. host, director, timing company, referee, etc.
+  attributes Json
+
+  scrapedAt DateTime @default(now())
+
+  events Event[]
+}
+
+model Event {
+  id      String @id @default(cuid())
+  idTFRRS Int    @unique
+
+  name           String
+  gender         String @db.Char(1)
+  distanceMeters Float?
+
+  scrapedAt DateTime @default(now())
+
+  meet   Meet   @relation(fields: [meetId], references: [id])
+  meetId String
+
+  results Result[]
+}
+
+model Result {
+  id String @id @default(cuid())
+
+  time  Float
+  place Int
+  score Int?
+
+  team   String?
+  teamId String?
+
+  classYear ClassYear
+
+  scrapedAt DateTime @default(now())
+
+  race   Event  @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  raceId String
+
+  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Restrict)
+  athleteId String
+}
+
+model Athlete {
+  id        String @id @default(cuid())
+  idTFRRS   Int    @unique
+  firstName String
+  lastName  String
+
+  scrapedAt DateTime @default(now())
+
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId String?
+
+  results      Result[]
+  fantasyTeams AthleteOnFantasyTeam[]
+}
+
+model Team {
+  id      String @id @default(cuid())
+  idTFRRS Int    @unique
+
+  state  State
+  level  Level
+  gender Gender
+  name   String // e.g. Carleton College
+  imgUrl String?
+
+  scrapedAt DateTime @default(now())
+
+  athletes Athlete[]
+  leagues  League[]
+}
+
+model League {
+  id      String @id @default(cuid())
+  idTFRRS Int    @unique
+  name    String
+
+  teams Team[]
+}
+
+////////////////////////////
+// FANTASY-RELATED MODELS //
+////////////////////////////
+
+model FantasyLeague {
+  id   String @id @default(cuid())
+  name String @db.VarChar(30)
+
+  teams FantasyTeam[]
+}
+
+model FantasyTeam {
+  id String @id @default(cuid())
+
+  name      String @db.VarChar(32) // e.g. Minnesota Vikings
+  shortName String @db.Char(3) // e.g. MIN
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique // one-to-one
+
+  league   FantasyLeague @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  leagueId String
+
+  athletes AthleteOnFantasyTeam[]
+
+  @@unique([id, leagueId])
+}
+
+model AthleteOnFantasyTeam {
+  id String @id @default(cuid())
+
+  athlete   Athlete @relation(fields: [athleteID], references: [id], onDelete: Cascade)
+  athleteID String
+
+  team     FantasyTeam @relation(fields: [teamId, leagueId], references: [id, leagueId], onDelete: Cascade)
+  teamId   String
+  leagueId String
+
+  onTeamSince DateTime @updatedAt
+
+  @@unique([leagueId, athleteID]) // only one copy of each athlete per league
+}
+
+/////////////////////////
+// AUTH-RELATED MODELS //
+/////////////////////////
+
+// used by `next-auth`
+// careful modifying these
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+
+  team FantasyTeam? // one-to-one
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+///////////
+// ENUMS // 
+///////////
+
+enum Gender {
+  M
+  F
+}
+
+enum ClassYear {
+  FR
+  SO
+  JR
+  SR
+}
+
+enum Level {
+  college
+  jcollege
+}
+
+enum State {
+  AL
+  AK
+  AZ
+  AR
+  CA
+  CO
+  CT
+  DE
+  FL
+  GA
+  HI
+  ID
+  IL
+  IN
+  IA
+  KS
+  KY
+  LA
+  ME
+  MD
+  MA
+  MI
+  MN
+  MS
+  MO
+  MT
+  NE
+  NV
+  NH
+  NJ
+  NM
+  NY
+  NC
+  ND
+  OH
+  OK
+  OR
+  PA
+  RI
+  SC
+  SD
+  TN
+  TX
+  UT
+  VT
+  VA
+  WA
+  WV
+  WI
+  WY
+}

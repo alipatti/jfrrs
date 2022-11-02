@@ -1,13 +1,18 @@
 """Utility functions for extracting data from TFRRS."""
-from scrapy.http import HtmlResponse
-from scrapy.selector import SelectorList
 import re
 from datetime import datetime
+import requests
+import re
+import json
+
+from scrapy.selector import SelectorList
+import pandas as pd
+
+# TODO do some cleanup. a lot of these aren't needed anymore
 
 
 def _clean(string: str) -> str:
     return re.sub(r"\s+", " ", string).strip()
-
 
 
 def get_attributes(spans: SelectorList):
@@ -58,3 +63,47 @@ def _fmt_date(string: str) -> int:
         date_obj = datetime(2021, month, day)
 
     return date_obj.strftime("%m/%d/%Y")
+
+
+def get_meets_df() -> pd.DataFrame:
+    """Retrieves information for every meet on TFRRS via a public
+    direct athletics script and format it as a pandas DataFrame"""
+
+    url = "https://www.directathletics.com/scripts/fuseDriver.js"
+    headers = {"user-agent": "jfrrs"}  # server rejects requests without this
+
+    with requests.get(url, headers=headers) as r:
+        assert r.status_code == 200, "Request rejected by Direct Athletics"
+        js = r.text.replace("\t", " ")
+
+    # regex pattern to find the json array in the .js file
+    pattern = re.compile(r"(\[\s*(?:{.+?},?\s*)*\]);", flags=re.DOTALL)
+
+    raw_array_string = pattern.search(js).group(1)
+    meets = pd.DataFrame(json.loads(raw_array_string))
+
+    # convert dates to python datetimes
+    meets["date_begin"] = pd.to_datetime(
+        meets["date_begin"], infer_datetime_format=True
+    )
+
+    # drop non-tfrrs meets
+    meets = meets[meets.tfrrs == "1"]
+
+    # convert sport to one of itf, otf, xc
+    meets["sport"] = [
+        sport if sport != "track" 
+        else ("otf" if outdoors == "1" else "itf")
+        for sport, outdoors in zip(meets.sport, meets.outdoors)
+    ]  # fmt: skip
+
+    # cleanup
+    meets.rename(columns={"meet_hnd": "tfrrs_id", "date_begin": "date"}, inplace=True)
+    meets.drop(columns=["outdoors", "url", "tfrrs", "meetpro"], inplace=True)
+    meets.reset_index(inplace=True, drop=True)
+
+    return meets
+
+def get_teams_df() -> pd.DataFrame:
+    """"""
+
