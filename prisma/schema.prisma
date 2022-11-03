@@ -19,13 +19,15 @@ datasource db {
 /////////////////////////////
 
 model Meet {
-  id      String  @id @default(cuid())
-  idTFRRS Int     @unique
-  isXC    Boolean
+  id       String   @id @default(cuid())
+  idTFRRS  Int      @unique
+  sport    Sport
+  outdoors Boolean?
 
   name     String
   date     DateTime
-  location String
+  location String?
+  state    State
 
   // json blob to store optional unstructured data
   // e.g. host, director, timing company, referee, etc.
@@ -41,7 +43,7 @@ model Event {
   idTFRRS Int    @unique
 
   name           String
-  gender         String @db.Char(1)
+  gender         Gender
   distanceMeters Float?
 
   scrapedAt DateTime @default(now())
@@ -213,6 +215,11 @@ model VerificationToken {
 ///////////
 // ENUMS // 
 ///////////
+
+enum Sport {
+  xc
+  tf
+}
 
 enum Gender {
   M

@@ -21,7 +21,7 @@ services:
     command: "npm run dev"
     working_dir: /app
 
-
+  # TODO setup scraper docker container
   # scraper:
   #   image: python:3.10
     

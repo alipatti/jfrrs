@@ -7,11 +7,14 @@ name = "pypi"
 scrapy = "*"
 prisma = "*"
 json5 = "*"
+pandas = "*"
+numpy = "*"
 
 [dev-packages]
 ipykernel = "*"
-pandas = "*"
 black = "*"
+pylint = "*"
+jmespath = "*"
 
 [requires]
 python_version = "3.10"

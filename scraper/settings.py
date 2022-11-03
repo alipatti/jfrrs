@@ -1,17 +1,12 @@
-BOT_NAME = 'jfrrs'
+BOT_NAME = "JFRRS Scraper"
 
-SPIDER_MODULES = ['scraper.spiders']
-NEWSPIDER_MODULE = 'scraper.spiders'
+SPIDER_MODULES = ["scraper.spiders"]
+NEWSPIDER_MODULE = "scraper.spiders"
 
-
-# Crawl responsibly by identifying yourself (and your website) on the user-agent
-#USER_AGENT = 'jfrrs_scraper (+http://www.yourdomain.com)'
-
-
-ROBOTSTXT_OBEY = True  # Obey robots.txt rules
+USER_AGENT = 'JFRRS'
 
 CONCURRENT_REQUESTS = 16
 
 ITEM_PIPELINES = {
-   'jfrrs_scraper.pipelines.JfrrsScraperPipeline': 300,
+    # TODO
 }
