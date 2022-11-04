@@ -1,16 +1,37 @@
 {
-    "version": "0.1.0",
-    "configurations": [
-        {
-            "name": "Debug Spider",
-            "type": "python",
-            "request": "launch",
-            "module": "scrapy",
-            "args": [
-                "runspider",
-                "${file}"
-            ],
-            "console": "integratedTerminal"
-        }
-    ]
+  "version": "0.1.0",
+  "configurations": [
+    {
+      "name": "Scraper: Debug spider",
+      "type": "python",
+      "request": "launch",
+      "module": "scrapy",
+      "args": ["runspider", "${file}"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Next.js: Debug server-side",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev"
+    },
+    {
+      "name": "Next.js: Debug client-side",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000"
+    },
+    {
+      "name": "Next.js: Debug full stack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "started server on .+, url: (https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      }
+    }
+  ]
 }
