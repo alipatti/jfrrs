@@ -3,7 +3,7 @@ interface LogoProps {
 }
 
 export default function Logo({ animated = false}: LogoProps) {
-  // TODO convert to classnames conditional 
+  // IMPROVEMENT convert to classnames conditional 
   let jClass = "inline-block font-jeff scale-75";
   if (animated)
     jClass = jClass.concat(

@@ -28,7 +28,7 @@ export default function Footer() {
         <span> 2022</span>
       </div>
       <div className="text-xs self-end font-extralight ">
-        An app by{" "}
+        © 2022{" "}
         <Link href="https://alipatti.com" className="hover:underline">
           Alistair Pattison
         </Link>

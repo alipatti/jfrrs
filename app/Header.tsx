@@ -1,8 +1,10 @@
+"use client"
+
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
 import Logo from "./Logo";
 
-// pages to display in navbar
+// // pages to display in navbar
 type NavbarPage = [route: string, displayName: string];
 
 const NAVBAR_PAGES: NavbarPage[] = [

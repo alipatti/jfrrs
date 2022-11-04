@@ -26,11 +26,11 @@ export default function RootLayout({
       </head>
 
       <body className="min-h-screen grid">
-        {/* {showHeader && (
+        {showHeader && (
           <AuthContext>
             <Header />
           </AuthContext>
-        )} */}
+        )}
         <main className="m-5 max-w-3xl w-full mx-auto">{children}</main>
         {showFooter && <Footer />}
       </body>
