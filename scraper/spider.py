@@ -20,15 +20,21 @@ import json5  # a slower but more flexible json parser for javascript objects
 import pandas as pd
 import numpy as np
 
+from scraper.pipelines import SaveToDatabase
+
 if TYPE_CHECKING:
     from scrapy.http import HtmlResponse, TextResponse
     from scrapy.selector import Selector
 
 
 class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
-    name = "TFRRS Scraper"
 
+    name = "TFRRS Scraper"
     allowed_domains = ["tfrrs.org"]
+    custom_settings = dict(
+        CONCURRENT_REQUESTS=16,
+        ITEM_PIPELINES={SaveToDatabase: 100},
+    )
 
     ##################
     # STARTING POINT #
@@ -101,7 +107,8 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
         meets = meets[meets.sport == "xc"].head(10)
 
         for meet in meets.itertuples(index=False):
-            meet_in_database = False  # TODO
+            # TODO make api endpoint to check if a meet has been scraped yet
+            meet_in_database = False
             if meet_in_database:
                 continue
 
@@ -112,10 +119,17 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
 
     def parse_tfrrs_js(self, response: "TextResponse"):
 
+        # helper
+        def extract_dataframe(response: "HtmlResponse", variable_name: str):
+            regex_pattern = re.compile(
+                rf"{variable_name}\s*=\s*(\[.+?\]);",
+                flags=re.DOTALL,
+            )
+            raw_array_string = regex_pattern.search(response.text).group(1)
+            return pd.DataFrame(json5.loads(raw_array_string))
+
         # extract conferences
-        conferences_raw = df_from_tfrrs_js_response(
-            response, "autocomplete_conferences"
-        )
+        conferences_raw = extract_dataframe(response, "autocomplete_conferences")
         conferences_columns = [
             conferences_raw.text.rename("name"),
             conferences_raw.url.str.extract(r"/leagues/(?P<idTFRRS>\d+)\.html"),
@@ -125,10 +139,14 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
             axis="columns",
         )
 
-        yield from conferences.to_dict("records")
+        for row in conferences.to_dict("records"):
+            yield {
+                "type": "conference",
+                "data": row,
+            }
 
         # extract teams
-        teams_raw = df_from_tfrrs_js_response(response, "autocomplete_teams")
+        teams_raw = extract_dataframe(response, "autocomplete_teams")
         teams_columns = [
             teams_raw.text.str.extract(r"(?P<name>.+?) \((?P<gender>[MF])\)"),
             teams_raw.url.str.extract(r"/teams/(?:tf|xc)/(?P<idTFRRS>.+)\.html"),
@@ -141,7 +159,11 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
             axis="columns",
         )
 
-        yield from teams.to_dict("records")
+        for row in teams.to_dict("records"):
+            yield {
+                "type": "team",
+                "data": row,
+            }
 
     #############################
     # MEET RESULTS PAGE PARSING #
@@ -161,8 +183,6 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
 
         # parse individual races
         races = self.parse_xc_races(response)
-
-        # break
 
         meet_info["events"] = {"create": races}  # for prisma write
 
@@ -241,23 +261,19 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
 # HELPERS #
 ###########
 
+
+def tfrrs_url_from_id(idTFRRS: int, sport: Literal["xc", "tf"]):
+    return f"https://tfrrs.org/results{'/xc' if sport == 'xc' else ''}/{idTFRRS}"
+
+
+#####################
+# PARSING FUNCTIONS #
+#####################
+
 # IMPROVEMENT
 # move this logic into an item pipeline?
 # the problem is how do we group data to insert as one big prisma query
 # per meet once we send stuff down the pipeline
-
-
-def df_from_tfrrs_js_response(response: "HtmlResponse", variable_name: str):
-    regex_pattern = re.compile(
-        rf"{variable_name}\s*=\s*(\[.+?\]);",
-        flags=re.DOTALL,
-    )
-    raw_array_string = regex_pattern.search(response.text).group(1)
-    return pd.DataFrame(json5.loads(raw_array_string))
-
-
-def tfrrs_url_from_id(idTFRRS: int, sport: Literal["xc", "tf"]):
-    return f"https://tfrrs.org/results{'/xc' if sport == 'xc' else ''}/{idTFRRS}"
 
 
 def athlete_id_from_td(td: "Selector") -> int | None:
@@ -267,11 +283,6 @@ def athlete_id_from_td(td: "Selector") -> int | None:
 
 def team_id_from_td(td: "Selector") -> str | None:
     return td.xpath("./a/@href").re_first(r".+/teams(?:/xc)?/(\w+)\.html")
-
-
-#####################
-# PARSING FUNCTIONS #
-#####################
 
 
 def parse_time(string: str) -> float:

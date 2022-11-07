@@ -19,6 +19,8 @@
     "eslint-config-next": "13.0.1",
     "next": "13.0.1",
     "next-auth": "^4.15.0",
+    "prettier": "^2.7.1",
+    "prettier-tailwind": "^0.0.0-development",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "^4.6.0",

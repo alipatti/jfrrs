@@ -1,0 +1,38 @@
+# DEVELOPMENT SPEC
+
+name: JFRRS
+
+services:
+
+  database:
+    image: postgres:latest
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: jfrrs
+    volumes:
+      - dev_database:/var/lib/postgresql/data
+
+  # FIX
+  # need to somehow make the container install its own 
+  # copy of node_modules so the dependencies are build 
+  # for the docker linux distro and not my machine
+
+  # app:
+  #   depends_on: 
+  #     - database
+  #   image: node:16-alpine
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./:/app  # mount current folder to docker image
+  #   working_dir: /app
+  #   command: "yarn run dev"
+
+  # TODO
+  # scraper:
+  #   image: python:3.10-alpine
+
+volumes:
+  dev_database:

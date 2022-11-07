@@ -4,8 +4,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// TODO migrate to MySQL and setup docker development database
-
 // TODO setup production database 
 // (with some online provider. i don't want to host this myself)
 
@@ -103,10 +101,10 @@ model Team {
   scrapedAt DateTime @default(now())
 
   athletes Athlete[]
-  leagues  League[]
+  leagues  Conference[]
 }
 
-model League {
+model Conference {
   id      String @id @default(cuid())
   idTFRRS Int    @unique
   name    String

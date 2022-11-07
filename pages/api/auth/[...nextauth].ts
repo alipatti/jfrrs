@@ -9,7 +9,7 @@ import prisma from "../../../prisma/client";
 // TODO: redirect to main page on sign-out
 
 export const authOptions = {
-  // adapter: PrismaAdapter(prisma),  // TODO
+  adapter: PrismaAdapter(prisma),  // TODO
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,

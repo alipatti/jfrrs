@@ -1,3 +1,5 @@
+"use client"
+
 import Header from "./Header";
 import Footer from "./Footer";
 import AuthContext from "./AuthContext";
@@ -24,16 +26,13 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-
-      <body className="min-h-screen grid">
-        {showHeader && (
-          <AuthContext>
-            <Header />
-          </AuthContext>
-        )}
-        <main className="m-5 max-w-3xl w-full mx-auto">{children}</main>
-        {showFooter && <Footer />}
-      </body>
+      <AuthContext>
+        <body className="min-h-screen grid">
+          {showHeader && <Header />}
+          <main className="m-5 max-w-3xl w-full mx-auto">{children}</main>
+          {showFooter && <Footer />}
+        </body>
+      </AuthContext>
     </html>
   );
 }
