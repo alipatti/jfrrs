@@ -2,10 +2,13 @@
 
 {
   "compilerOptions": {
+    "target": "ES3",
     "sourceMap": true,
     "outDir": "./build",
     "esModuleInterop": true,
-    "lib": ["ES2021.String"]
+    "lib": ["ES2021.String"],
+    "isolatedModules": true,
+    "moduleResolution": "node"
   },
   "include": ["./*.ts"],
   "exclude": ["node_modules"]

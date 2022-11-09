@@ -11,7 +11,7 @@ import {
 } from "./util";
 import prisma from "../prisma";
 import { Gender } from "@prisma/client";
-import { ParsedDirectAthleticsMeetData } from "./main";
+import { ParsedMeetSearchData } from "./main";
 
 const config: AxiosRequestConfig = {
   // set config here
@@ -23,7 +23,7 @@ export async function scrapeXCMeet({
   idTfrrs,
   name,
   state,
-}: ParsedDirectAthleticsMeetData) {
+}: ParsedMeetSearchData) {
   // TODO format date in log message
   // TODO fix the date
   const url = URLS.meet.xc(idTfrrs);
@@ -63,7 +63,6 @@ export async function scrapeXCMeet({
       name,
       date,
       idTfrrs,
-      sport: "xc",
       state,
       location,
       attributes,

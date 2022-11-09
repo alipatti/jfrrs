@@ -1,4 +1,4 @@
-import { Gender, Level, Sport, State } from "@prisma/client";
+import { Gender, Level, State } from "@prisma/client";
 import axios from "axios";
 import prisma from "../prisma";
 import { mapLimit } from "async";
@@ -6,32 +6,17 @@ import { mapLimit } from "async";
 import { parseTeamId, URLS } from "./util";
 import { scrapeTFMeet } from "./tfMeet";
 import { scrapeXCMeet } from "./xcMeet";
-
-// shape of scraped data before processing
-interface RawDirectAthleticsMeetData {
-  url: string;
-  tfrrs: "1" | "0";
-  venue_state: string;
-  name: string;
-  meetpro: "1" | "0";
-  date_begin: string;
-  meet_hnd: string;
-  sport: "track" | "xc" | "swimming";
-  outdoors?: "1" | "0";
-}
+import { getAllMeetInfo } from "./meetSearch";
 
 export interface RawTfrrsAutocompleteData {
   text: string;
   url: string;
 }
 
-// after processing
-export interface ParsedDirectAthleticsMeetData {
+export interface ParsedMeetSearchData {
   name: string;
   date: Date;
   idTfrrs: number;
-  sport: Sport;
-  outdoors: boolean;
   state: State;
 }
 
@@ -43,25 +28,7 @@ export async function main() {
 }
 
 export async function scrapeAllMeets() {
-  const response = await axios.get(URLS.direct_athletics_script);
-
-  const data: RawDirectAthleticsMeetData[] = JSON.parse(
-    response.data
-      .match(/var data =\s+(\[.*?\]);/s)[1] // find the JSON string
-      .replaceAll("\t", " ") // parser doesn't like tabs
-  );
-
-  const allMeets: ParsedDirectAthleticsMeetData[] = data
-    .filter((meet) => meet.tfrrs === "1") // only keep meets on TFRRS
-    .filter((meet) => meet.sport !== "swimming") // drop swim meets
-    .map((meet) => ({
-      name: meet.name,
-      date: new Date(meet.date_begin),
-      idTfrrs: parseInt(meet.meet_hnd),
-      sport: (meet.sport == "track" ? "tf" : "xc") as Sport,
-      outdoors: !meet.outdoors ? null : meet.outdoors === "1",
-      state: meet.venue_state as State,
-    }));
+  const allMeets = await getAllMeetInfo();
 
   // filter out previously-scraped meets
   const scrapedMeets = await prisma.meet.findMany();
@@ -77,26 +44,24 @@ export async function scrapeAllMeets() {
   console.log(`Scraping ${meetsToScrape.length} meets...`);
 
   // send out requests while limiting concurrency to not break TFRRS
-  const scrapedIds = (
-    await mapLimit(
-      meetsToScrape,
-      MAX_CONCURRENT_REQUESTS,
-      async (meet: ParsedDirectAthleticsMeetData) => {
-        try {
-          if (meet.sport === "xc") await scrapeXCMeet(meet);
-          else await scrapeTFMeet(meet);
-          return meet.idTfrrs;
-        } catch (error) {
-          console.error(`Error scraping ${meet.name}:`);
-          console.error(error);
-          return null;
-        }
+  const scrapedIds = await mapLimit(
+    meetsToScrape,
+    MAX_CONCURRENT_REQUESTS,
+    async (meet: ParsedMeetSearchData) => {
+      try {
+        await scrapeXCMeet(meet);
+        return meet.idTfrrs;
+      } catch (error) {
+        console.error(`Error scraping ${meet.name}:`);
+        console.error(error);
+        return null;
       }
+    }
+  ).then(() =>
+    console.log(
+      `Successfully scraped ${scrapedIds.filter((id) => id).length} meets.`
     )
-  ).filter((id) => id);  // remove null values
-
-  console.log(`Successfully scraped ${scrapedIds.length} meets.`);
-  return scrapedIds.length
+  );
 }
 
 export async function scrapeAllTeamsAndConferences() {
