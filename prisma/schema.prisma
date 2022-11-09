@@ -1,5 +1,8 @@
 // documentation: https://pris.ly/d/prisma-schema
 
+// TODO
+// - add createdAt to all models
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,10 +20,8 @@ datasource db {
 /////////////////////////////
 
 model Meet {
-  id       String   @id @default(cuid())
-  idTFRRS  Int      @unique
-  sport    Sport
-  outdoors Boolean?
+  id      String @id @default(cuid())
+  idTfrrs Int    @unique
 
   name     String
   date     DateTime
@@ -38,15 +39,13 @@ model Meet {
 
 model Event {
   id      String @id @default(cuid())
-  idTFRRS Int    @unique
+  idTfrrs Int    @unique
 
   name           String
   gender         Gender
   distanceMeters Float?
 
-  scrapedAt DateTime @default(now())
-
-  meet   Meet   @relation(fields: [meetId], references: [id])
+  meet   Meet   @relation(fields: [meetId], references: [id], onDelete: Cascade)
   meetId String
 
   results Result[]
@@ -55,34 +54,27 @@ model Event {
 model Result {
   id String @id @default(cuid())
 
-  time  Float
-  place Int
-  score Int?
+  place     Int
+  time      Float?
+  score     Int?
+  classYear ClassYear?
 
-  team   String?
+  athlete   Athlete? @relation(fields: [athleteId], references: [id], onDelete: Restrict)
+  athleteId String?
+
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: Restrict)
   teamId String?
-
-  classYear ClassYear
-
-  scrapedAt DateTime @default(now())
 
   race   Event  @relation(fields: [raceId], references: [id], onDelete: Cascade)
   raceId String
-
-  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Restrict)
-  athleteId String
 }
 
 model Athlete {
-  id        String @id @default(cuid())
-  idTFRRS   Int    @unique
-  firstName String
-  lastName  String
+  id      String @id @default(cuid())
+  idTfrrs Int    @unique
+  name    String
 
   scrapedAt DateTime @default(now())
-
-  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  teamId String?
 
   results      Result[]
   fantasyTeams AthleteOnFantasyTeam[]
@@ -90,24 +82,26 @@ model Athlete {
 
 model Team {
   id      String @id @default(cuid())
-  idTFRRS Int    @unique
+  idTfrrs String @unique
 
   state  State
   level  Level
   gender Gender
-  name   String // e.g. Carleton College
+  name   String
   imgUrl String?
 
   scrapedAt DateTime @default(now())
 
-  athletes Athlete[]
-  leagues  Conference[]
+  conferences Conference[]
+  results     Result[]
 }
 
 model Conference {
   id      String @id @default(cuid())
-  idTFRRS Int    @unique
+  idTfrrs Int    @unique
   name    String
+
+  scrapedAt DateTime @default(now())
 
   teams Team[]
 }
@@ -120,6 +114,9 @@ model FantasyLeague {
   id   String @id @default(cuid())
   name String @db.VarChar(30)
 
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  ownerId String
+
   teams FantasyTeam[]
 }
 
@@ -129,10 +126,10 @@ model FantasyTeam {
   name      String @db.VarChar(32) // e.g. Minnesota Vikings
   shortName String @db.Char(3) // e.g. MIN
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique // one-to-one
 
-  league   FantasyLeague @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  league   FantasyLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   leagueId String
 
   athletes AthleteOnFantasyTeam[]
@@ -172,7 +169,8 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  team FantasyTeam? // one-to-one
+  team          FantasyTeam? // one-to-one
+  FantasyLeague FantasyLeague[]
 }
 
 model Account {
@@ -214,11 +212,6 @@ model VerificationToken {
 // ENUMS // 
 ///////////
 
-enum Sport {
-  xc
-  tf
-}
-
 enum Gender {
   M
   F
@@ -236,55 +229,61 @@ enum Level {
   jcollege
 }
 
+// including Canadian provinces, DC, and Puerto Rico
 enum State {
-  AL
   AK
-  AZ
+  AL
   AR
+  AZ
+  BC
   CA
   CO
   CT
+  DC
   DE
   FL
   GA
   HI
+  IA
   ID
   IL
   IN
-  IA
   KS
   KY
   LA
-  ME
-  MD
   MA
+  MD
+  ME
   MI
   MN
-  MS
   MO
+  MS
   MT
+  NC
+  ND
   NE
-  NV
   NH
   NJ
   NM
+  NV
   NY
-  NC
-  ND
   OH
   OK
   OR
   PA
+  PR
   RI
   SC
   SD
+  SK
   TN
   TX
   UT
-  VT
   VA
+  VI
+  VT
   WA
-  WV
   WI
+  WV
   WY
 }

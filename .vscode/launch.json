@@ -2,6 +2,15 @@
   "version": "0.1.0",
   "configurations": [
     {
+      "name": "Debug TS scraper",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scraper/main.ts",
+      "preLaunchTask": "tsc: build - scraper/tsconfig.json",
+      "outFiles": ["${workspaceFolder}/scraper/build/**/*.js"],
+      "console": "integratedTerminal",
+    },
+    {
       "name": "Scraper: Debug spider",
       "type": "python",
       "request": "launch",

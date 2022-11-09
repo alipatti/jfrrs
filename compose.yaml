@@ -30,9 +30,12 @@ services:
   #   working_dir: /app
   #   command: "yarn run dev"
 
-  # TODO
   # scraper:
-  #   image: python:3.10-alpine
+  #   depends_on:
+  #     - database
+  #   image: python:3.10
+  #   build: "./scraper"
+  #   command: ["scrapy", "runspider"]
 
 volumes:
   dev_database:

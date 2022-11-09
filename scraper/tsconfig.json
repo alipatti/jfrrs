@@ -1,0 +1,12 @@
+// tsc -p scraper/tsconfig.json
+
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "outDir": "./build",
+    "esModuleInterop": true,
+    "lib": ["ES2021.String"]
+  },
+  "include": ["./*.ts"],
+  "exclude": ["node_modules"]
+}

@@ -1,6 +1,6 @@
 import { Session } from "next-auth";
 import { ReadonlyRequestCookies } from "next/dist/server/app-render";
-import prisma from "../prisma/client";
+import prisma from "../prisma";
 
 export async function sessionFromCookies(
   cookies: ReadonlyRequestCookies

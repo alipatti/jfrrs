@@ -1,14 +1,12 @@
 """
-
+TODO finish documentation
 
 Scraping Flow
 -------------
  1. Scrape client-side javascript files from TFRRS and DirectAthletics to get
     all teams, meets, and conferences.
- 2. Add all teams/conferences that aren't already in the database.
- 3. For every meet that hasn't yet been scraped
-     i. Dispach a scraper to 
-
+ 2. Add all teams and conferences that aren't already in the database.
+ 3. Go through each meet and scrape every one that hasn't been done already.
 
 """
 import re
@@ -18,9 +16,8 @@ from typing import TYPE_CHECKING, Literal
 import scrapy
 import json5  # a slower but more flexible json parser for javascript objects
 import pandas as pd
-import numpy as np
 
-from scraper.pipelines import SaveToDatabase
+from scraper_.pipelines import API_KEY, API_URL, SaveToDatabase
 
 if TYPE_CHECKING:
     from scrapy.http import HtmlResponse, TextResponse
@@ -39,19 +36,20 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
     ##################
     # STARTING POINT #
     ##################
-
     def start_requests(self):
         """Dispatches requests to directathletics and tfrrs client-side
         javascript files that contain lists of all the meets, teams,
         and conferences in the database."""
 
         # tfrrs autocomplete script
-        tfrrs_js_url = "https://www.tfrrs.org/js/navbar_autocomplete.js"
+        # tfrrs_js_url = "https://www.tfrrs.org/js/navbar_autocomplete.js"
 
-        yield scrapy.Request(
-            url=tfrrs_js_url,
-            callback=self.parse_tfrrs_js,
-        )
+        # yield scrapy.Request(
+        #     url=tfrrs_js_url,
+        #     callback=self.parse_tfrrs_js,
+        # )
+
+        # TODO wait here until all teams and conferences have been scraped
 
         # directathletics script
         da_js_url = "https://www.directathletics.com/scripts/fuseDriver.js"
@@ -67,7 +65,7 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
     # CLIENT-SIDE JAVASCRIPT PARSING #
     ##################################
 
-    def parse_directathletics_js(self, response: "TextResponse"):
+    async def parse_directathletics_js(self, response: "TextResponse"):
         """Extracts a list of information about all meets in the TFRRS
         database and dispatches requests to scrape them if they have
         not already been scraped.
@@ -80,44 +78,51 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
         raw_array_string = pattern.search(javascript).group(1)  # find the array
         meets = pd.DataFrame(json.loads(raw_array_string))  # convert to df
 
-        # convert to python datetimes
-        meets["date"] = pd.to_datetime(meets.date_begin, infer_datetime_format=True)
-
-        # NOTE: this indoor/outdoor field is wrong for a lot of the earlier meets
-        meets["outdoors"] = meets.outdoors == "1"
-        meets[meets.sport == "xc"]["outdoors"] = np.nan
-
-        meets = meets[meets.tfrrs == "1"]  # drop meets not on tfrrs
-
         # cleanup
+        # FIX: the indoor/outdoor field is wrong for a lot of early meets
+        meets["outdoors"] = meets.outdoors == "1"
+        meets.loc[meets.sport == "xc", "outdoors"] = None  # irrelevant for xc
+        meets = meets[meets.tfrrs == "1"]  # drop meets not on tfrrs
+        meets["date"] = pd.to_datetime(meets.date_begin, infer_datetime_format=True)
+        meets["date"] = meets.date.dt.strftime("%Y-%m-%dT%H:%M:%SZ")  # make date json serializeable
+        meets["idTfrrs"] = meets.meet_hnd.astype(int)
         meets = (
             meets
-            .rename(columns={"meet_hnd": "idTFRRS", "venue_state": "state"})
-            .drop(columns=["url", "tfrrs", "meetpro", "date_begin"])
+            .rename(columns={"venue_state": "state"})
+            .drop(columns=["url", "tfrrs", "meetpro", "date_begin", "meet_hnd"])
             .sort_values(["date"], ascending=False)  # most recent first
             .reset_index(drop=True)
         )  # fmt: skip
 
+        # remove meets that have already been scraped
+        request = scrapy.Request(
+            API_URL + "/meets",
+            body=json.dumps(dict(key=API_KEY)),
+        )
+        response: "TextResponse" = await self.crawler.engine.download(request)
+        assert response.status == 200, "Unable to retrieves previously-scraped meets."
+        scraped_meets = set(response.json())
+        meets = meets[~meets.idTfrrs.isin(scraped_meets)]
+
+        meets = meets[meets.sport == "xc"].head(10)  # HACK
+
+        # deploy requests to scrape meets
         callbacks = {
             "xc": self.parse_xc_meet,
             "track": self.parse_tf_meet,
         }
 
-        # for debugging
-        meets = meets[meets.sport == "xc"].head(10)
-
         for meet in meets.itertuples(index=False):
-            # TODO make api endpoint to check if a meet has been scraped yet
-            meet_in_database = False
-            if meet_in_database:
-                continue
-
-            url = tfrrs_url_from_id(meet.idTFRRS, sport=meet.sport)
+            url = get_tfrrs_url(meet.idTfrrs, meet.sport)
             callback = callbacks[meet.sport]
             callback_kwargs = dict(meet_info=meet._asdict())
-            yield scrapy.Request(url=url, callback=callback, cb_kwargs=callback_kwargs)
+            yield scrapy.Request(
+                url=url,
+                callback=callback,
+                cb_kwargs=callback_kwargs,
+            )
 
-    def parse_tfrrs_js(self, response: "TextResponse"):
+    async def parse_tfrrs_js(self, response: "TextResponse"):
 
         # helper
         def extract_dataframe(response: "HtmlResponse", variable_name: str):
@@ -132,24 +137,20 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
         conferences_raw = extract_dataframe(response, "autocomplete_conferences")
         conferences_columns = [
             conferences_raw.text.rename("name"),
-            conferences_raw.url.str.extract(r"/leagues/(?P<idTFRRS>\d+)\.html"),
+            conferences_raw.url.str.extract(r"/leagues/(?P<idTfrrs>\d+)\.html"),
         ]
         conferences = pd.concat(
             objs=conferences_columns,
             axis="columns",
         )
 
-        for row in conferences.to_dict("records"):
-            yield {
-                "type": "conference",
-                "data": row,
-            }
+        conferences["idTfrrs"] = conferences.idTfrrs.astype(int)
 
         # extract teams
         teams_raw = extract_dataframe(response, "autocomplete_teams")
         teams_columns = [
             teams_raw.text.str.extract(r"(?P<name>.+?) \((?P<gender>[MF])\)"),
-            teams_raw.url.str.extract(r"/teams/(?:tf|xc)/(?P<idTFRRS>.+)\.html"),
+            teams_raw.url.str.extract(r"/teams/(?:tf|xc)/(?P<idTfrrs>.+)\.html"),
             teams_raw.url.str.extract(
                 r"/teams/(?:tf|xc)/(?P<state>.{2})_(?P<level>.*?)_.*"
             ),
@@ -159,11 +160,10 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
             axis="columns",
         )
 
-        for row in teams.to_dict("records"):
-            yield {
-                "type": "team",
-                "data": row,
-            }
+        yield dict(
+            conferences=conferences.to_dict("records"),
+            teams=teams.to_dict("records"),
+        )
 
     #############################
     # MEET RESULTS PAGE PARSING #
@@ -174,60 +174,63 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
 
         header = response.css(".xc-header-row > div > div")
 
-        # name, date, and idTFRRS are already in `meet_info`
+        # name, date, and idTfrrs are already in `meet_info`
         meet_info["sport"] = "xc"
         meet_info["location"] = parse_location(
             header.xpath("./div/div/text()")[-1].get()
         )
         meet_info["attributes"] = parse_meet_attributes(header)
-
-        # parse individual races
-        races = self.parse_xc_races(response)
-
-        meet_info["events"] = {"create": races}  # for prisma write
-
-        yield meet_info
+        events, athletes = self.parse_xc_races(response)
+        meet = dict(
+            meet_info=meet_info,
+            events=events,
+        )
+        yield dict(meet=meet, athletes=athletes)
 
     def parse_xc_races(self, response: "HtmlResponse") -> list[dict]:
         # hyperlinks to jump to individual events in the meet
         race_links: list["Selector"] = response.css(".event-links + ol a")
 
         races = []
+        athletes = []
         for link in race_links:
             race_info = {}
             race_info["name"] = link.xpath("./text()").get()
 
-            # HACK... but all my simpler solutions break
-            # pylint: disable=line-too-long
+            # take the first .custom-table-title which has a descendant containing
+            # the name of the race and the and string 'individual results'
+
             title_div = response.xpath(
-                f'//*[.//*[contains(text(), "Individual Results") and contains(text(), "{race_info["name"]}")] and contains(@class, "custom-table-title")]'
+                f'//*[.//*[contains(text(), "Individual Results") and contains(text(), "{race_info["name"]}")] and contains(@class, "custom-table-title")]'  # pylint: disable=line-too-long
             )
 
             results_table = title_div.xpath("./following-sibling::table[1]")
-            results = self.parse_xc_results(results_table)
+            results, race_athletes = self.parse_xc_results(results_table)
 
-            race_info["idTFRRS"] = int(link.css("::attr(href)").re(r"#event(\d+)")[0])
+            race_info["idTfrrs"] = int(link.css("::attr(href)").re(r"#event(\d+)")[0])
             race_info["distance"] = parse_distance(
                 title_div.css("h3::text").re_first(r".+\((.+)\)")
             )
             race_info["gender"] = "W" if "women" in race_info["name"].lower() else "M"
 
-            race_info["results"] = {"create": results}  # for prisma write
+            race_info["results"] = results
 
+            athletes.extend(race_athletes)
             races.append(race_info)
 
-        return races
+        return races, athletes
 
-    def parse_xc_results(self, results_table: "Selector") -> list[dict]:
+    def parse_xc_results(
+        self, results_table: "Selector"
+    ) -> tuple[list[dict], list[dict]]:
         """
-        Method for parsing a specific race within an XC meet.
-        E.g. the men's 8k within Carleton Running of the Cows
-
-        Yields one `meet` item and lots of `result` items
+        Method for extracting `result` dicts from the TFRRS results table.
         """
 
+        athletes = []
         results = []
         for tr in results_table.xpath("./tbody/tr"):
+            athlete_info = {}
             result_info = {}
 
             tds = {
@@ -238,6 +241,7 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
                 )
             }
 
+            # extract result info
             result_info["place"] = parse_score(tds["pl"].xpath("text()").get())
             result_info["time"] = parse_time(tds["time"].xpath("text()").get())
             result_info["score"] = parse_score(tds["score"].xpath("text()").get())
@@ -245,16 +249,20 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
                 tds["year"].xpath("text()").get()
             )
 
-            result_info["athleteId"] = athlete_id_from_td(tds["name"])
-            result_info["teamId"] = team_id_from_td(tds["team"])
+            result_info["athleteIdTFRRS"] = athlete_id_from_td(tds["name"])
+            result_info["teamIdTFRRS"] = team_id_from_td(tds["team"])
 
+            # extract athlete info
+            athlete_info["idTfrrs"] = result_info["athleteIdTFRRS"]
+            athlete_info["name"] = tds["name"].xpath(".//text()").get().strip()
+
+            athletes.append(athlete_info)
             results.append(result_info)
 
-        return results
+        return results, athletes
 
     def parse_tf_meet(self, response: "HtmlResponse"):
-        # TODO
-        return {}
+        NotImplemented  # TODO
 
 
 ###########
@@ -262,8 +270,8 @@ class TfrrsSpider(scrapy.Spider):  # pylint: disable=abstract-method
 ###########
 
 
-def tfrrs_url_from_id(idTFRRS: int, sport: Literal["xc", "tf"]):
-    return f"https://tfrrs.org/results{'/xc' if sport == 'xc' else ''}/{idTFRRS}"
+def get_tfrrs_url(idTfrrs: int, sport: Literal["xc", "tf"]):
+    return f"https://tfrrs.org/results{'/xc' if sport == 'xc' else ''}/{idTfrrs}"
 
 
 #####################
@@ -277,8 +285,8 @@ def tfrrs_url_from_id(idTFRRS: int, sport: Literal["xc", "tf"]):
 
 
 def athlete_id_from_td(td: "Selector") -> int | None:
-    idTFRRS = td.xpath("./a/@href").re_first(r".+/athletes/(\d+?)/")
-    return int(idTFRRS) if idTFRRS else None
+    idTfrrs = td.xpath("./a/@href").re_first(r".+/athletes/(\d+?)/")
+    return int(idTfrrs) if idTfrrs else None
 
 
 def team_id_from_td(td: "Selector") -> str | None:
@@ -286,29 +294,26 @@ def team_id_from_td(td: "Selector") -> str | None:
 
 
 def parse_time(string: str) -> float:
-    if string.upper() in {"DNS", "DNF", "DQ"}:
+    if string.upper() in {"DNS", "DNF", "DQ"}:  # TODO probably need to add more here
         return None
 
-    whole, fractional = string.split(".") if "." in string else (string, 0)
-
-    seconds = sum(
-        mult * int(value)
-        for mult, value in zip(
+    return sum(
+        multiplier * float(raw_value)
+        for multiplier, raw_value in zip(
             [1, 60, 60 * 60],
-            reversed(whole.split(":")),
+            reversed(string.split(":")),
         )
     )
 
-    seconds += float(f"0.{fractional}")
-
-    return seconds
-
 
 def parse_score(string: str) -> int:
-    if string is None:
-        return None
+    try:
+        score = int(string)
+        assert score > 0
+        return score
 
-    return int(string)
+    except (ValueError, TypeError, AssertionError):
+        return None  # invalid or doesn't exist
 
 
 def parse_class_year(string: str) -> Literal["FR", "SO", "JR", "SR"]:
@@ -316,6 +321,8 @@ def parse_class_year(string: str) -> Literal["FR", "SO", "JR", "SR"]:
         return None
 
     year = string[:2]  # HACK
+
+    # TODO handle class years in the format 2024, 2023, etc.
 
     if year in {"FR", "SO", "JR", "SR"}:
         return year
@@ -325,6 +332,8 @@ def parse_class_year(string: str) -> Literal["FR", "SO", "JR", "SR"]:
 
 def parse_distance(string) -> float:
     """in meters"""
+
+    # TODO replace this with regex
 
     string = string.lower()
     multiplier = 1

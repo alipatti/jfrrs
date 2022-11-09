@@ -4,7 +4,7 @@ import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import prisma from "../../../prisma/client";
+import prisma from "../../../prisma";
 
 // TODO: redirect to main page on sign-out
 

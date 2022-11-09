@@ -2,12 +2,7 @@ import TeamDashboard, { Team } from "./TeamDashboard";
 
 import { cookies } from "next/headers";
 
-import prisma from "../../prisma/client";
-
-// for testing
-const team: Team = {
-  name: "team name",
-};
+import prisma from "../../prisma";
 
 export default async function ProfilePage() {
   const token = cookies().get("next-auth.session-token")?.value;
@@ -25,7 +20,6 @@ export default async function ProfilePage() {
       },
     },
   });
-
 
   return <TeamDashboard team={session?.user.team} />;
 }

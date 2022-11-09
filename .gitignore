@@ -1,9 +1,9 @@
 # node and python dependencies
 /node_modules
-.venv
 
-# next.js
-/.next/
+# build files
+/.next
+/scraper/build
 
 # macOS jeffery
 .DS_Store
