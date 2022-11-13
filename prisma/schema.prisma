@@ -113,6 +113,7 @@ model Conference {
 model FantasyLeague {
   id   String @id @default(cuid())
   name String @db.VarChar(30)
+  slug String @db.VarChar(6) // for url purposes
 
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   ownerId String

@@ -1,5 +1,5 @@
 import cheerio from "cheerio";
-import axios, { AxiosRequestConfig } from "axios";
+import axios from "axios";
 
 import {
   URLS,
@@ -11,26 +11,21 @@ import {
 } from "./util";
 import prisma from "../prisma";
 import { Gender } from "@prisma/client";
-import { ParsedMeetSearchData } from "./main";
+import { ParsedMeetSearchData } from "./getAllMeets";
 
-const config: AxiosRequestConfig = {
-  // set config here
-  // limit concurrent requests?
-};
-
-export async function scrapeXCMeet({
+export default async function scrapeXCMeet({
   date,
   idTfrrs,
   name,
   state,
 }: ParsedMeetSearchData) {
-  // TODO format date in log message
-  // TODO fix the date
   const url = URLS.meet.xc(idTfrrs);
-  console.log(`Scraping ${name} (${date.toDateString()}, ${url})`);
+  console.log(`Scraping ${name}`);
+  console.log(` - ${date.toDateString()}`);
+  console.log(` - ${url}`);
 
   // load meet page
-  const response = await axios.get(url, config);
+  const response = await axios.get(url);
   const $ = cheerio.load(response.data);
 
   // extract general meet info
@@ -73,7 +68,7 @@ export async function scrapeXCMeet({
             create: race_results.map(({ result_info: info, athlete, team }) => {
               return {
                 ...info,
-                athlete: athlete // connect athlete if it exists
+                athlete: athlete // create athlete if it doesn't exist
                   ? {
                       connectOrCreate: {
                         where: { idTfrrs: athlete.idTfrrs },
@@ -81,7 +76,7 @@ export async function scrapeXCMeet({
                       },
                     }
                   : undefined,
-                team: team // connect team if it exists
+                team: team // create team if it doesn't exist
                   ? {
                       connectOrCreate: {
                         where: { idTfrrs: team.idTfrrs },
@@ -108,18 +103,18 @@ export async function scrapeXCMeet({
 }
 
 async function scrapeXCRace(id: number, $: cheerio.Root) {
-  const individualResultsDiv = $(
-    `[name=event${id}] ~ :has(table):contains('Individual Results')`
+  const titleDiv = $(
+    `[name$=${id}] ~ * .custom-table-title:contains('Individual Results')`
   );
 
   const { name, distance } =
     /(?<name>.*)\s+Individual Results\s+\((?<distance>.+)\)/.exec(
-      individualResultsDiv.find("h3").text()
+      titleDiv.find("h3").text()
     )?.groups;
 
   const gender: Gender = name.toLowerCase().includes("women") ? "F" : "M";
 
-  const resultsTable = individualResultsDiv.find("table:first");
+  const resultsTable = titleDiv.find("~ table:first, :has(table) table:first");
   const cols = resultsTable
     .find("thead th")
     .map((_, el) => $(el).text().toLowerCase().trim())
@@ -138,17 +133,23 @@ async function scrapeXCRace(id: number, $: cheerio.Root) {
           .get()
       );
 
-      const teamId = tds.team
+      let teamId = tds.team
         .find("a")
         .attr("href")
-        ?.match(/\/([\w-]+)\.html/)![1];
+        ?.match(/(?<=\/)[\w\-%\d]+(?=\.html)/)
+        ?.pop();
 
-      const athleteId = parseInt(
-        tds.name
-          .find("a")
-          .attr("href")
-          ?.match(/athletes\/(\d+)\//)[1]
-      );
+      // we aren't dealing with numeric DirectAthletics ID, so we ignore them
+      if (teamId?.match(/^\d+$/)) teamId = undefined;
+
+      const athleteId =
+        parseInt(
+          tds.name
+            .find("a")
+            .attr("href")
+            ?.match(/(?<=athletes(?:\/track)?\/)\d+(?=\.html|\/)/)
+            ?.pop()
+        ) || undefined;
 
       return {
         result_info: {
@@ -172,11 +173,8 @@ async function scrapeXCRace(id: number, $: cheerio.Root) {
           : undefined,
       };
     })
-    .filter(
-      // remove DNS, DNF, DQ, etc.
-      ({ result_info }) =>
-        Number.isNaN(result_info.time) || result_info.place == 0
-    );
+    // remove DNF, DNS, DQ, etc.
+    .filter(({ result_info: { place, time } }) => time && place !== 0);
 
   return {
     race_info: {

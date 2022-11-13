@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+input,
 button {
-  @apply border shadow-sm bg-primary-900 text-gray-200 rounded-md py-1 px-2;
+  @apply rounded-md border py-1 px-2 shadow-sm;
+}
+
+button,
+input[type="submit"],
+input[type="button"] {
+  @apply bg-primary-900 text-gray-200 cursor-pointer;
+}
+
+input[type="text"] {
+  @apply border-gray-200;
+}
+
+label {
+  @apply text-sm text-gray-700
 }

@@ -1,3 +1,5 @@
+// TODO center copyright in footer
+
 import Logo from "./Logo";
 import Link from "next/link";
 import { RiGithubFill } from "react-icons/ri";

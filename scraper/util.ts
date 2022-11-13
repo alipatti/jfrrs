@@ -91,6 +91,7 @@ export function parseClassYear(str: string): ClassYear {
       return null;
 
     case "": // weird space character
+    case "?": // apparently this is valid on TFRRS?
       return null;
 
     default:
