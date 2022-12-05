@@ -1,6 +1,6 @@
 "use client";
 
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { apiFromFormEvent } from "../clientUtil";
 
 export default function CreateLeaguePage() {
@@ -14,9 +14,11 @@ export default function CreateLeaguePage() {
       onSubmit={async (event) => {
         event.preventDefault();
         const response = await apiFromFormEvent(event);
-        console.log(response.body);
+        console.log(response.status);
+
         if (response.status == 200) {
-          router.push(`/createteam/?team=${response.body.slug}`);
+          const body = await response.json()
+          router.push(`/createteam/?league=${body.slug}`);
         }
       }}
     >

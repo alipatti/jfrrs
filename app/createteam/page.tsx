@@ -7,6 +7,7 @@ export default function CreateTeamDefault({
 }: {
   searchParams: { league?: string };
 }) {
+  console.log(searchParams);
   if (!searchParams?.league)
     return (
       <div>
@@ -43,7 +44,18 @@ export default function CreateTeamDefault({
         }}
       >
         <label htmlFor="teamName">Team Name</label>
-        <input type="text" name="teamName" />
+        <input type="text" name="teamName" defaultValue="Minnesota Vikings" />
+
+        <label htmlFor="shortName">Team Abbreviation</label>
+        <input type="text" name="shortName" defaultValue="MIN" />
+
+        <input
+          type="text"
+          name="league"
+          value={searchParams.league}
+          className="hidden"
+        />
+
         <input type="submit" value="Create Team" />
       </form>
     </div>

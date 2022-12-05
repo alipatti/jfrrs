@@ -20,6 +20,9 @@ const handler: NextApiHandler = async (req, res) => {
     return;
   }
 
+  // TODO check if user is the owner of a league
+  
+
   const slug = randomBytes(3).toString("hex").toUpperCase();
 
   const league = await prisma.fantasyLeague.create({

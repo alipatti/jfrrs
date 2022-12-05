@@ -15,8 +15,5 @@ export async function apiFromFormEvent(event: FormEvent<HTMLFormElement>) {
     },
   });
 
-  return {
-    ...response,
-    body: await response.json()
-  };
+  return response;
 }

@@ -2,6 +2,7 @@
 
 // TODO
 // - add createdAt to all models
+// - can enforce at a db level that a user can't own a league if they have a team in a different league?
 
 generator client {
   provider = "prisma-client-js"
@@ -113,10 +114,10 @@ model Conference {
 model FantasyLeague {
   id   String @id @default(cuid())
   name String @db.VarChar(30)
-  slug String @db.VarChar(6) // for url purposes
+  slug String @unique @db.VarChar(6) // for url purposes
 
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  ownerId String
+  ownerId String @unique
 
   teams FantasyTeam[]
 }
@@ -170,8 +171,8 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  team          FantasyTeam? // one-to-one
-  FantasyLeague FantasyLeague[]
+  team        FantasyTeam? // one-to-one
+  ownedLeague FantasyLeague?
 }
 
 model Account {
